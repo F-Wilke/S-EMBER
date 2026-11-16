@@ -101,6 +101,12 @@ for the JSONL schemas and troubleshooting.
 
 Set `NUM_PROCESSES=N` to launch on `N` GPUs via `accelerate`. Qwen3-VL uses `flash_attention_2` in the provided runner, so install `flash-attn` before running Qwen3-VL. For small InternVL3.5 checks, reduce `NUM_FRAME` and `TOTAL_MAX_NUM` if GPU memory is limited.
 
+The InternVL3.5 MCQ and grounding runners automatically use CPU mode when CUDA is unavailable, or you can select it explicitly with `DEVICE=cpu`. CPU mode runs one process and is substantially slower; the 4B model is the smallest supported local model. For example:
+
+```bash
+DEVICE=cpu NUM_PROCESSES=1 bash scripts/run_mcq_smoke.sh internvl3_5 4B
+```
+
 The InternVL3.5 runner accepts these optional environment variables:
 
 | Variable | Default | Purpose |
@@ -210,4 +216,4 @@ This repository builds on the open-source [`lmms-eval`](https://github.com/Evolv
 
 The majority of S-EMBER is licensed under [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/), however portions of the project are available under separate license terms: lmms-eval is subject to the licenses listed at [https://github.com/EvolvingLMMs-Lab/lmms-eval?tab=License-1-ov-file#readme](https://github.com/EvolvingLMMs-Lab/lmms-eval?tab=License-1-ov-file#readme); lm-evaluation-harness is licensed under the MIT license [https://github.com/EleutherAI/lm-evaluation-harness/blob/main/LICENSE.md](https://github.com/EleutherAI/lm-evaluation-harness/blob/main/LICENSE.md).
 
-The S-EMBER dataset is distributed on Hugging Face under the license and gated access terms listed on the [dataset page](https://huggingface.co/datasets/facebook/S-EMBER).
+The S-EMBER dataset is distributed on Hugging Face under the license and gated access terms listed on the [dataset page](https://huggingface.co/datasets/facebook/S-EMBER). The data download instructions do not spell out the gated-access steps: sign in to Hugging Face, accept the terms or request access if prompted, then authenticate the CLI with that account.

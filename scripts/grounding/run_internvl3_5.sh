@@ -21,7 +21,9 @@
 # Optional environment variables:
 #   SEMBER_OUTPUT_DIR  Where to write per-sample logs and the metrics json.
 #                      Defaults to ./output/grounding/internvl3_5_<size>
-#   NUM_PROCESSES      Number of GPUs to launch with accelerate (default 8).
+#   DEVICE             "auto" (default), "cuda", or "cpu". CPU mode is
+#                      single-process and substantially slower than a GPU.
+#   NUM_PROCESSES      Process count (GPU default 8; CPU mode requires 1).
 #   NUM_FRAME          Frames sampled per video (default 128).
 #   TOTAL_MAX_NUM      Upper bound on total image tiles (default 128).
 #   MAIN_PROCESS_PORT  accelerate main process port (default 12430).
@@ -54,7 +56,40 @@ REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCRIPT_NAME="internvl3_5_${MODEL_SIZE,,}"
 PRETRAINED="OpenGVLab/InternVL3_5-${MODEL_SIZE}"
 
-NUM_PROCESSES="${NUM_PROCESSES:-8}"
+DEVICE="${DEVICE:-auto}"
+if [[ "${DEVICE}" == "auto" ]]; then
+  if python -c 'import torch; raise SystemExit(0 if torch.cuda.is_available() else 1)'; then
+    DEVICE="cuda"
+  else
+    DEVICE="cpu"
+  fi
+fi
+
+case "${DEVICE}" in
+  cpu)
+    if [[ -n "${NUM_PROCESSES:-}" && "${NUM_PROCESSES}" != "1" ]]; then
+      echo "ERROR: CPU mode supports NUM_PROCESSES=1 only." >&2
+      exit 1
+    fi
+    NUM_PROCESSES=1
+    MODEL_DEVICE="cpu"
+    DEVICE_MAP="cpu"
+    USE_FLASH_ATTN="false"
+    ACCELERATE_DEVICE_ARGS=(--cpu)
+    ;;
+  cuda)
+    NUM_PROCESSES="${NUM_PROCESSES:-8}"
+    MODEL_DEVICE="cuda:0"
+    DEVICE_MAP="cuda:0"
+    USE_FLASH_ATTN="true"
+    ACCELERATE_DEVICE_ARGS=()
+    ;;
+  *)
+    echo "ERROR: unsupported DEVICE='${DEVICE}'. Choose auto, cuda, or cpu." >&2
+    exit 1
+    ;;
+esac
+
 NUM_FRAME="${NUM_FRAME:-128}"
 TOTAL_MAX_NUM="${TOTAL_MAX_NUM:-128}"
 MAIN_PROCESS_PORT="${MAIN_PROCESS_PORT:-12430}"
@@ -64,9 +99,10 @@ mkdir -p "${OUTPUT_DIR}"
 
 echo "=== S-EMBER InternVL3.5 grounding run ==="
 echo "  Model:         ${PRETRAINED}"
+echo "  Device:        ${DEVICE}"
 echo "  Frames:        ${NUM_FRAME}"
 echo "  total_max_num: ${TOTAL_MAX_NUM}"
-echo "  GPUs:          ${NUM_PROCESSES}"
+echo "  Processes:     ${NUM_PROCESSES}"
 echo "  Video dir:     ${SEMBER_VIDEO_DIR}"
 echo "  Output dir:    ${OUTPUT_DIR}"
 echo "========================================"
@@ -81,11 +117,12 @@ print('Weights cached for ${PRETRAINED}.')
 "
 
 accelerate launch \
+    "${ACCELERATE_DEVICE_ARGS[@]}" \
     --num_processes="${NUM_PROCESSES}" \
     --main_process_port="${MAIN_PROCESS_PORT}" \
     -m lmms_eval eval \
     --model internvl3_5 \
-    --model_args "pretrained=${PRETRAINED},modality=video,num_frame=${NUM_FRAME},total_max_num=${TOTAL_MAX_NUM}" \
+    --model_args "pretrained=${PRETRAINED},modality=video,num_frame=${NUM_FRAME},total_max_num=${TOTAL_MAX_NUM},device=${MODEL_DEVICE},device_map=${DEVICE_MAP},use_flash_attn=${USE_FLASH_ATTN}" \
     --tasks sember_grounding \
     --batch_size 1 \
     --log_samples \

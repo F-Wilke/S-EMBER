@@ -273,8 +273,8 @@ class InternVL3(lmms):
             self.device_map = "auto"
             self._use_auto_device_map = True
         else:
-            self._device = torch.device(f"cuda:{accelerator.local_process_index}")
-            self.device_map = f"cuda:{accelerator.local_process_index}"
+            self._device = torch.device(device)
+            self.device_map = device_map
 
         self._model = AutoModel.from_pretrained(
             self.path,
